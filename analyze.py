@@ -69,7 +69,7 @@ def estimate_key(y, sr):
     scores_sorted = sorted(scores, reverse=True)
     top, second = scores_sorted[0], scores_sorted[1] if len(scores_sorted) > 1 else scores_sorted[0]
     # Konfidenz: normalisierter Abstand zwischen bestem und zweitbestem Match
-    confidence = float(np.clip((top - second) / 2, 0, 1))
+    confidence = float(np.nan_to_num(np.clip((top - second) / 2, 0, 1), nan=0.0))
 
     return {
         'key': best['key'],
