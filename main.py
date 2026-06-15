@@ -6,12 +6,38 @@ unterstützt und der Nuxt-Proxy (mixproof-analyze.post.ts im Hauptrepo)
 das hochgeladene File so 1:1 durchreichen kann.
 """
 
+import io
+import struct
+import wave
+
 from fastapi import FastAPI, File, UploadFile
 from fastapi.responses import JSONResponse
 
 from analyze import analyze
 
 app = FastAPI()
+
+
+def _silence_wav_bytes(seconds: float = 1.0, sr: int = 22050) -> bytes:
+    n = int(sr * seconds)
+    buf = io.BytesIO()
+    with wave.open(buf, "wb") as f:
+        f.setnchannels(1)
+        f.setsampwidth(2)
+        f.setframerate(sr)
+        f.writeframes(struct.pack("<" + "h" * n, *([0] * n)))
+    return buf.getvalue()
+
+
+@app.on_event("startup")
+def warmup() -> None:
+    """Triggert die numba-JIT-Kompilierung von librosa beim Container-Start
+    statt beim ersten echten Request, damit der erste Client kein Timeout
+    durch die Kompilierzeit erlebt."""
+    try:
+        analyze(_silence_wav_bytes())
+    except Exception:
+        pass
 
 
 @app.get("/")
