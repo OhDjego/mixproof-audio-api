@@ -193,7 +193,7 @@ def compute_stereo_metrics(data):
 
 
 def analyze(audio_bytes):
-    data, sr = sf.read(io.BytesIO(audio_bytes), always_2d=True, dtype='float64')
+    data, sr = sf.read(io.BytesIO(audio_bytes), always_2d=True, dtype='float32')
     if data.shape[1] == 1:
         data = np.repeat(data, 2, axis=1)
     y = librosa.to_mono(data.T)
