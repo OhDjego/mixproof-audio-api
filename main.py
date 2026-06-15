@@ -1,14 +1,9 @@
 """
-FastAPI-Wrapper um analyze() für das Railway-Deployment.
+FastAPI-Wrapper um analyze() für den Railway-Deploy von mixproof-audio-api.
 
-Self-contained Verzeichnis (railway/), damit Railway dieses Unterverzeichnis
-als Service-Root verwenden kann (eigenes Dockerfile, railway.toml,
-requirements.txt, analyze.py). analyze.py ist eine Kopie von
-api/analyze.py (Vercel-Function, separat, siehe vercel.json) - die
-Analyse-Logik selbst ist identisch, nur der Transport unterscheidet sich:
-hier multipart/form-data statt Base64-JSON, da FastAPI multipart nativ
-unterstützt und die Nuxt-Seite (server/api/mixproof-analyze.post.ts) das
-hochgeladene File so 1:1 durchreichen kann.
+multipart/form-data statt Base64-JSON, da FastAPI multipart nativ
+unterstützt und der Nuxt-Proxy (mixproof-analyze.post.ts im Hauptrepo)
+das hochgeladene File so 1:1 durchreichen kann.
 """
 
 from fastapi import FastAPI, File, UploadFile
@@ -20,6 +15,7 @@ app = FastAPI()
 
 
 @app.get("/")
+@app.get("/health")
 def health():
     return {"status": "ok"}
 
