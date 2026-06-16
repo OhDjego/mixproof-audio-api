@@ -8,6 +8,7 @@ das hochgeladene File so 1:1 durchreichen kann.
 
 import io
 import struct
+import threading
 import wave
 
 from fastapi import FastAPI, File, UploadFile
@@ -29,15 +30,17 @@ def _silence_wav_bytes(seconds: float = 1.0, sr: int = 22050) -> bytes:
     return buf.getvalue()
 
 
-@app.on_event("startup")
-def warmup() -> None:
-    """Triggert die numba-JIT-Kompilierung von librosa beim Container-Start
-    statt beim ersten echten Request, damit der erste Client kein Timeout
-    durch die Kompilierzeit erlebt."""
+def _warmup_thread() -> None:
+    """Numba-JIT-Kompilierung im Hintergrund — blockiert nicht den Health-Check."""
     try:
         analyze(_silence_wav_bytes())
     except Exception:
         pass
+
+
+@app.on_event("startup")
+def warmup() -> None:
+    threading.Thread(target=_warmup_thread, daemon=True).start()
 
 
 @app.get("/")
