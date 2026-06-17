@@ -6,11 +6,6 @@ unterstützt und der Nuxt-Proxy (mixproof-analyze.post.ts im Hauptrepo)
 das hochgeladene File so 1:1 durchreichen kann.
 """
 
-import io
-import struct
-import threading
-import wave
-
 from fastapi import FastAPI, File, UploadFile
 from fastapi.responses import JSONResponse
 
@@ -19,28 +14,13 @@ from analyze import analyze
 app = FastAPI()
 
 
-def _silence_wav_bytes(seconds: float = 1.0, sr: int = 22050) -> bytes:
-    n = int(sr * seconds)
-    buf = io.BytesIO()
-    with wave.open(buf, "wb") as f:
-        f.setnchannels(1)
-        f.setsampwidth(2)
-        f.setframerate(sr)
-        f.writeframes(struct.pack("<" + "h" * n, *([0] * n)))
-    return buf.getvalue()
-
-
-def _warmup_thread() -> None:
-    """Numba-JIT-Kompilierung im Hintergrund — blockiert nicht den Health-Check."""
-    try:
-        analyze(_silence_wav_bytes())
-    except Exception:
-        pass
-
-
 @app.on_event("startup")
-def warmup() -> None:
-    threading.Thread(target=_warmup_thread, daemon=True).start()
+async def warmup():
+    import numpy as np
+    import librosa
+    dummy = np.zeros(22050, dtype=np.float32)
+    librosa.beat.beat_track(y=dummy, sr=22050)
+    print("Warmup complete")
 
 
 @app.get("/")
