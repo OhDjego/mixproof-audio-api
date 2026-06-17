@@ -4,7 +4,7 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt fastapi uvicorn python-multipart
 
-ARG CACHE_BUST=1
+ARG CACHE_BUST=
 COPY analyze.py main.py ./
 
 EXPOSE 8000
