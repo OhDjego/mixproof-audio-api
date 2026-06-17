@@ -8,8 +8,6 @@ das hochgeladene File so 1:1 durchreichen kann.
 
 import threading
 
-import numpy as np
-import librosa
 from fastapi import FastAPI, File, UploadFile
 from fastapi.responses import JSONResponse
 
@@ -19,6 +17,8 @@ app = FastAPI()
 
 
 def _run_warmup():
+    import numpy as np
+    import librosa
     dummy = np.zeros(22050, dtype=np.float32)
     librosa.beat.beat_track(y=dummy, sr=22050)
     print("Warmup complete")
