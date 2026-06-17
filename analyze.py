@@ -192,15 +192,20 @@ def compute_stereo_metrics(data):
     return {'stereoWidth': width, 'monoCompatibility': corr}
 
 
-ANALYSIS_SR = 22050  # downsample for librosa — halves memory on 44.1/48kHz files
-
-
 def analyze(audio_bytes):
     data, sr = sf.read(io.BytesIO(audio_bytes), always_2d=True, dtype='float32')
     if data.shape[1] == 1:
         data = np.repeat(data, 2, axis=1)
+    y = librosa.to_mono(data.T)
 
-    # Loudness metrics need original SR and stereo data
+    bpm_result = estimate_bpm(y, sr)
+    key_result = estimate_key(y, sr)
+
+    spectral_centroid = float(librosa.feature.spectral_centroid(y=y, sr=sr).mean())
+    spectral_rolloff = float(librosa.feature.spectral_rolloff(y=y, sr=sr).mean())
+    zcr = float(librosa.feature.zero_crossing_rate(y=y).mean())
+    onset_env = librosa.onset.onset_strength(y=y, sr=sr)
+
     meter = pyln.Meter(sr)
     try:
         lufs_integrated = float(meter.integrated_loudness(data))
@@ -210,34 +215,11 @@ def analyze(audio_bytes):
         lufs_integrated = -70.0
 
     true_peak_db = compute_true_peak_db(data)
-    lra = compute_lra(data, sr, meter)
-    dr = compute_dr(data, sr)
-    crest = compute_crest_factor_db(data, true_peak_db)
-    stereo = compute_stereo_metrics(data)
-    dur = round(float(data.shape[0] / sr), 2)
-    channels = int(data.shape[1])
-
-    # Downsample mono signal for librosa — saves ~60% memory and CPU
-    y_full = librosa.to_mono(data.T)
-    del data  # free stereo array before librosa allocates its buffers
-    if sr != ANALYSIS_SR:
-        y = librosa.resample(y_full, orig_sr=sr, target_sr=ANALYSIS_SR)
-        del y_full
-    else:
-        y = y_full
-    asr = ANALYSIS_SR
-
-    bpm_result = estimate_bpm(y, asr)
-    key_result = estimate_key(y, asr)
-    spectral_centroid = float(librosa.feature.spectral_centroid(y=y, sr=asr).mean())
-    spectral_rolloff = float(librosa.feature.spectral_rolloff(y=y, sr=asr).mean())
-    zcr = float(librosa.feature.zero_crossing_rate(y=y).mean())
-    onset_env = librosa.onset.onset_strength(y=y, sr=asr)
 
     return {
         'sr': int(sr),
-        'durationSec': dur,
-        'channels': channels,
+        'durationSec': round(float(len(y) / sr), 2),
+        'channels': int(data.shape[1]),
         'bpm': bpm_result,
         'key': key_result,
         'spectralCentroidHz': round(spectral_centroid, 1),
@@ -245,11 +227,11 @@ def analyze(audio_bytes):
         'zeroCrossingRate': round(zcr, 4),
         'onsetStrengthMean': round(float(onset_env.mean()), 4),
         'lufsIntegrated': round(lufs_integrated, 2),
-        'lra': lra,
+        'lra': compute_lra(data, sr, meter),
         'truePeakDb': true_peak_db,
-        'crestFactorDb': crest,
-        'dr': dr,
-        **stereo,
+        'crestFactorDb': compute_crest_factor_db(data, true_peak_db),
+        'dr': compute_dr(data, sr),
+        **compute_stereo_metrics(data),
     }
 
 

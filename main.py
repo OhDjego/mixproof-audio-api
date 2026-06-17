@@ -6,6 +6,7 @@ unterstützt und der Nuxt-Proxy (mixproof-analyze.post.ts im Hauptrepo)
 das hochgeladene File so 1:1 durchreichen kann.
 """
 
+import asyncio
 import io
 import struct
 import threading
@@ -17,6 +18,8 @@ from fastapi.responses import JSONResponse
 from analyze import analyze
 
 app = FastAPI()
+
+_warmup_done = threading.Event()
 
 
 def _silence_wav_bytes(seconds: float = 2.0, sr: int = 22050) -> bytes:
@@ -36,6 +39,8 @@ def _run_warmup():
         print("Warmup complete")
     except Exception as e:
         print(f"Warmup error (non-fatal): {e}")
+    finally:
+        _warmup_done.set()
 
 
 @app.on_event("startup")
@@ -51,9 +56,13 @@ def health():
 
 @app.post("/analyze")
 async def analyze_endpoint(audio: UploadFile = File(...)):
+    # Wait for warmup to finish (max 90s) before processing real audio
+    loop = asyncio.get_event_loop()
+    await loop.run_in_executor(None, lambda: _warmup_done.wait(timeout=90))
+
     audio_bytes = await audio.read()
     try:
         result = analyze(audio_bytes)
-    except Exception as e:  # noqa: BLE001 - HTTP-Boundary, Fehler an Caller melden
+    except Exception as e:  # noqa: BLE001
         return JSONResponse({"error": str(e)}, status_code=500)
     return result
