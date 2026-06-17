@@ -1,4 +1,4 @@
-FROM python:3.12-slim
+FROM python:3.12.11-slim
 WORKDIR /app
 
 # Install dependencies first (cached layer — only rebuilds when requirements.txt changes)
