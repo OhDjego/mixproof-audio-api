@@ -196,42 +196,62 @@ def analyze(audio_bytes):
     data, sr = sf.read(io.BytesIO(audio_bytes), always_2d=True, dtype='float32')
     if data.shape[1] == 1:
         data = np.repeat(data, 2, axis=1)
-    y = librosa.to_mono(data.T)
 
-    bpm_result = estimate_bpm(y, sr)
-    key_result = estimate_key(y, sr)
+    dur = round(float(data.shape[0] / sr), 2)
+    channels = int(data.shape[1])
 
-    spectral_centroid = float(librosa.feature.spectral_centroid(y=y, sr=sr).mean())
-    spectral_rolloff = float(librosa.feature.spectral_rolloff(y=y, sr=sr).mean())
-    zcr = float(librosa.feature.zero_crossing_rate(y=y).mean())
-    onset_env = librosa.onset.onset_strength(y=y, sr=sr)
-
+    # Loudness + stereo metrics need full stereo data at original SR
     meter = pyln.Meter(sr)
     try:
-        lufs_integrated = float(meter.integrated_loudness(data))
+        lufs_integrated = round(float(meter.integrated_loudness(data)), 2)
     except Exception:
         lufs_integrated = -70.0
     if not np.isfinite(lufs_integrated):
         lufs_integrated = -70.0
 
     true_peak_db = compute_true_peak_db(data)
+    lra        = compute_lra(data, sr, meter)
+    dr         = compute_dr(data, sr)
+    crest      = compute_crest_factor_db(data, true_peak_db)
+    stereo     = compute_stereo_metrics(data)
+
+    # Free the large stereo array before librosa allocates its buffers
+    y_mono = librosa.to_mono(data.T)
+    del data
+
+    # Downsample to 22050 Hz — reduces librosa memory/CPU by ~50–70 %
+    TARGET = 22050
+    if sr != TARGET:
+        y = librosa.resample(y_mono, orig_sr=sr, target_sr=TARGET)
+        del y_mono
+    else:
+        y = y_mono
+    asr = TARGET
+
+    bpm_result = estimate_bpm(y, asr)
+    key_result = estimate_key(y, asr)
+
+    spectral_centroid = float(librosa.feature.spectral_centroid(y=y, sr=asr).mean())
+    spectral_rolloff  = float(librosa.feature.spectral_rolloff(y=y, sr=asr).mean())
+    zcr               = float(librosa.feature.zero_crossing_rate(y=y).mean())
+    onset_env         = librosa.onset.onset_strength(y=y, sr=asr)
 
     return {
         'sr': int(sr),
-        'durationSec': round(float(len(y) / sr), 2),
-        'channels': int(data.shape[1]),
+        'durationSec': dur,
+        'channels': channels,
         'bpm': bpm_result,
         'key': key_result,
         'spectralCentroidHz': round(spectral_centroid, 1),
-        'spectralRolloffHz': round(spectral_rolloff, 1),
-        'zeroCrossingRate': round(zcr, 4),
-        'onsetStrengthMean': round(float(onset_env.mean()), 4),
-        'lufsIntegrated': round(lufs_integrated, 2),
-        'lra': compute_lra(data, sr, meter),
-        'truePeakDb': true_peak_db,
-        'crestFactorDb': compute_crest_factor_db(data, true_peak_db),
-        'dr': compute_dr(data, sr),
-        **compute_stereo_metrics(data),
+        'spectralRolloffHz':  round(spectral_rolloff, 1),
+        'zeroCrossingRate':   round(zcr, 4),
+        'onsetStrengthMean':  round(float(onset_env.mean()), 4),
+        'lufsIntegrated': lufs_integrated,
+        'lra':   lra,
+        'truePeakDb':    true_peak_db,
+        'crestFactorDb': crest,
+        'dr':    dr,
+        **stereo,
     }
 
 
