@@ -51,7 +51,7 @@ async def warmup():
 @app.get("/")
 @app.get("/health")
 def health():
-    return {"status": "ok"}
+    return {"status": "ok", "v": "b67fa85"}
 
 
 @app.post("/analyze")
